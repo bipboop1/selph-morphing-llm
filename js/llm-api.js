@@ -22,6 +22,11 @@ class LLMApiClient {
      * @returns {boolean} - True if configured, false otherwise
      */
     isConfigured() {
+        // For LM Studio local server, we don't require an API key
+        if (this.settings.provider === 'lmstudio') {
+            return Boolean(this.settings.provider);
+        }
+        // For other providers, API key is required
         return Boolean(this.settings.provider && this.settings.apiKey);
     }
 
@@ -58,18 +63,31 @@ class LLMApiClient {
             let response;
             switch (this.settings.provider) {
                 case 'openai':
+                    if (!this.settings.apiKey) {
+                        throw new Error('OpenAI requires an API key');
+                    }
                     response = await this.callOpenAI(conversation);
                     break;
                 case 'anthropic':
+                    if (!this.settings.apiKey) {
+                        throw new Error('Anthropic Claude requires an API key');
+                    }
                     response = await this.callAnthropic(conversation);
                     break;
                 case 'gemini':
+                    if (!this.settings.apiKey) {
+                        throw new Error('Google Gemini requires an API key');
+                    }
                     response = await this.callGemini(conversation);
                     break;
                 case 'mistral':
+                    if (!this.settings.apiKey) {
+                        throw new Error('Mistral requires an API key');
+                    }
                     response = await this.callMistral(conversation);
                     break;
                 case 'lmstudio':
+                    // LM Studio doesn't require an API key
                     response = await this.callLMStudio(conversation);
                     break;
                 default:
@@ -228,6 +246,7 @@ class LLMApiClient {
     async callLMStudio(conversation) {
         const apiUrl = this.settings.localServerUrl || 'http://localhost:1234/v1/chat/completions';
         
+        // LM Studio doesn't require an API key, just the server URL
         const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
@@ -236,7 +255,8 @@ class LLMApiClient {
             body: JSON.stringify({
                 messages: conversation,
                 max_tokens: 2000,
-                temperature: 0.7
+                temperature: 0.7,
+                stream: false
             })
         });
 

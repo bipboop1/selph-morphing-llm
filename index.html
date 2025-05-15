@@ -287,7 +287,7 @@
                     </select>
                 </div>
 
-                <div>
+                <div id="apiKeySection">
                     <label for="apiKeyInput">API Key:</label>
                     <input type="password" class="api-key-input" id="apiKeyInput" placeholder="Enter your API key">
                 </div>
@@ -336,8 +336,10 @@
                 if (settings.apiKey) apiKeyInput.value = settings.apiKey;
                 if (settings.localServerUrl) localServerUrl.value = settings.localServerUrl;
                 
-                // Show/hide local server settings based on provider
-                localServerSettings.style.display = modelSelect.value === 'lmstudio' ? 'block' : 'none';
+                // Show/hide settings based on provider
+                const isLMStudio = modelSelect.value === 'lmstudio';
+                localServerSettings.style.display = isLMStudio ? 'block' : 'none';
+                document.getElementById('apiKeySection').style.display = isLMStudio ? 'none' : 'block';
             });
 
             // Close modal when clicking outside
@@ -347,9 +349,11 @@
                 }
             });
 
-            // Toggle local server settings visibility based on provider selection
+            // Toggle settings visibility based on provider selection
             modelSelect.addEventListener('change', () => {
-                localServerSettings.style.display = modelSelect.value === 'lmstudio' ? 'block' : 'none';
+                const isLMStudio = modelSelect.value === 'lmstudio';
+                localServerSettings.style.display = isLMStudio ? 'block' : 'none';
+                document.getElementById('apiKeySection').style.display = isLMStudio ? 'none' : 'block';
             });
 
             // Save settings
