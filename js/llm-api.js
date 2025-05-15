@@ -1,0 +1,254 @@
+/**
+ * LLM API Integration Module
+ * Handles communication with various LLM providers: OpenAI, Claude, Gemini, Mistral, and LM Studio
+ */
+
+class LLMApiClient {
+    constructor() {
+        this.settings = JSON.parse(localStorage.getItem('llmSettings') || '{}');
+    }
+
+    /**
+     * Updates client settings
+     * @param {Object} settings - The settings object
+     */
+    updateSettings(settings) {
+        this.settings = settings;
+        localStorage.setItem('llmSettings', JSON.stringify(settings));
+    }
+
+    /**
+     * Checks if the client is properly configured
+     * @returns {boolean} - True if configured, false otherwise
+     */
+    isConfigured() {
+        return Boolean(this.settings.provider && this.settings.apiKey);
+    }
+
+    /**
+     * Gets the display name for the current provider
+     * @returns {string} - The provider display name
+     */
+    getProviderName() {
+        const providers = {
+            'openai': 'OpenAI',
+            'anthropic': 'Anthropic Claude',
+            'gemini': 'Google Gemini',
+            'mistral': 'Mistral',
+            'lmstudio': 'LM Studio (Local)'
+        };
+        return providers[this.settings.provider] || this.settings.provider;
+    }
+
+    /**
+     * Sends a message to the LLM provider
+     * @param {string} message - The user's message
+     * @param {Array} conversation - The conversation history
+     * @returns {Promise<string>} - The response from the LLM
+     */
+    async sendMessage(message, conversation = []) {
+        if (!this.isConfigured()) {
+            throw new Error('API client is not configured');
+        }
+
+        // Add the user message to the conversation history
+        conversation.push({ role: 'user', content: message });
+
+        try {
+            let response;
+            switch (this.settings.provider) {
+                case 'openai':
+                    response = await this.callOpenAI(conversation);
+                    break;
+                case 'anthropic':
+                    response = await this.callAnthropic(conversation);
+                    break;
+                case 'gemini':
+                    response = await this.callGemini(conversation);
+                    break;
+                case 'mistral':
+                    response = await this.callMistral(conversation);
+                    break;
+                case 'lmstudio':
+                    response = await this.callLMStudio(conversation);
+                    break;
+                default:
+                    throw new Error(`Provider ${this.settings.provider} not supported`);
+            }
+
+            // Add the assistant's response to the conversation history
+            conversation.push({ role: 'assistant', content: response });
+            return response;
+        } catch (error) {
+            console.error('Error calling LLM API:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Calls the OpenAI API
+     * @param {Array} conversation - The conversation history
+     * @returns {Promise<string>} - The response from OpenAI
+     */
+    async callOpenAI(conversation) {
+        const apiUrl = 'https://api.openai.com/v1/chat/completions';
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.settings.apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-4',
+                messages: conversation,
+                max_tokens: 2000
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+
+    /**
+     * Calls the Anthropic Claude API
+     * @param {Array} conversation - The conversation history
+     * @returns {Promise<string>} - The response from Claude
+     */
+    async callAnthropic(conversation) {
+        const apiUrl = 'https://api.anthropic.com/v1/messages';
+        
+        // Convert conversation to Claude format
+        const formattedConversation = {
+            messages: conversation.map(msg => ({
+                role: msg.role === 'assistant' ? 'assistant' : 'user',
+                content: msg.content
+            }))
+        };
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': this.settings.apiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-3-opus-20240229',
+                messages: formattedConversation.messages,
+                max_tokens: 2000
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Claude API error: ${error.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.content[0].text;
+    }
+
+    /**
+     * Calls the Google Gemini API
+     * @param {Array} conversation - The conversation history
+     * @returns {Promise<string>} - The response from Gemini
+     */
+    async callGemini(conversation) {
+        const apiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+        
+        // Convert conversation to Gemini format
+        const geminiMessages = conversation.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+        }));
+        
+        const response = await fetch(`${apiUrl}?key=${this.settings.apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contents: geminiMessages,
+                generationConfig: {
+                    maxOutputTokens: 2000
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Gemini API error: ${error.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.candidates[0].content.parts[0].text;
+    }
+
+    /**
+     * Calls the Mistral API
+     * @param {Array} conversation - The conversation history
+     * @returns {Promise<string>} - The response from Mistral
+     */
+    async callMistral(conversation) {
+        const apiUrl = 'https://api.mistral.ai/v1/chat/completions';
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.settings.apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'mistral-large-latest',
+                messages: conversation,
+                max_tokens: 2000
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Mistral API error: ${error.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+
+    /**
+     * Calls the LM Studio local server API
+     * @param {Array} conversation - The conversation history
+     * @returns {Promise<string>} - The response from the local LLM
+     */
+    async callLMStudio(conversation) {
+        const apiUrl = this.settings.localServerUrl || 'http://localhost:1234/v1/chat/completions';
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                messages: conversation,
+                max_tokens: 2000,
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`LM Studio API error: ${error.error?.message || response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+}
+
+// Export the client
+const llmClient = new LLMApiClient();

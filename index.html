@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Morphing LLM Interface</title>
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --secondary-color: #a29bfe;
+            --background-color: #ffffff;
+            --text-color: #2d3436;
+            --message-user-bg: #e9e9ff;
+            --message-llm-bg: #f0f0f0;
+            --border-radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            font-size: 1.2rem;
+        }
+
+        .settings-button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            min-height: 300px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            max-width: 80%;
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background-color: var(--message-user-bg);
+            border: 1px solid var(--secondary-color);
+        }
+
+        .llm-message {
+            align-self: flex-start;
+            background-color: var(--message-llm-bg);
+            border: 1px solid #ddd;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .user-input {
+            flex: 1;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            font-family: inherit;
+            resize: none;
+            min-height: 60px;
+        }
+
+        .send-button {
+            padding: 0.5rem 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            align-self: flex-end;
+            transition: background-color 0.2s;
+        }
+
+        .send-button:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .model-select, .api-key-input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #ddd;
+        }
+
+        .status-dot.connected {
+            background-color: #00b894;
+        }
+
+        .status-text {
+            font-size: 0.9rem;
+            color: #636e72;
+        }
+
+        .llm-message pre {
+            background-color: #f5f5f5;
+            padding: 0.5rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .llm-message code {
+            font-family: monospace;
+        }
+
+        .loading-indicator {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            color: var(--text-color);
+        }
+
+        .loading-dots {
+            display: inline-flex;
+            margin-left: 8px;
+        }
+
+        .loading-dots div {
+            width: 8px;
+            height: 8px;
+            margin: 0 4px;
+            border-radius: 50%;
+            background-color: var(--text-color);
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dots div:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .loading-dots div:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="app-title">Self-Morphing LLM Interface</div>
+        <button class="settings-button" id="settingsButton">⚙️</button>
+    </header>
+
+    <main>
+        <div class="chat-container">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <div class="status-text" id="statusText">Not connected</div>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer">
+                <!-- Messages will be dynamically inserted here -->
+            </div>
+
+            <div class="loading-indicator" id="loadingIndicator">
+                Thinking<div class="loading-dots">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <textarea class="user-input" id="userInput" placeholder="Type your message here..."></textarea>
+                <button class="send-button" id="sendButton">Send</button>
+            </div>
+        </div>
+    </main>
+
+    <div class="settings-modal" id="settingsModal">
+        <div class="modal-content">
+            <h2>Settings</h2>
+            <form id="settingsForm">
+                <div>
+                    <label for="modelSelect">LLM Provider:</label>
+                    <select class="model-select" id="modelSelect">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic Claude</option>
+                        <option value="gemini">Google Gemini</option>
+                        <option value="mistral">Mistral</option>
+                        <option value="lmstudio">LM Studio (Local)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="apiKeyInput">API Key:</label>
+                    <input type="password" class="api-key-input" id="apiKeyInput" placeholder="Enter your API key">
+                </div>
+
+                <div id="localServerSettings" style="display: none;">
+                    <label for="localServerUrl">Local Server URL:</label>
+                    <input type="text" class="api-key-input" id="localServerUrl" placeholder="http://localhost:1234">
+                </div>
+
+                <button type="submit" class="send-button">Save Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Load external JavaScript files -->
+    <script src="js/llm-api.js"></script>
+    <script src="js/page-modifier.js"></script>
+
+    <script>
+        // Main application code
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM elements
+            const messagesContainer = document.getElementById('messagesContainer');
+            const userInput = document.getElementById('userInput');
+            const sendButton = document.getElementById('sendButton');
+            const settingsButton = document.getElementById('settingsButton');
+            const settingsModal = document.getElementById('settingsModal');
+            const settingsForm = document.getElementById('settingsForm');
+            const modelSelect = document.getElementById('modelSelect');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const localServerSettings = document.getElementById('localServerSettings');
+            const localServerUrl = document.getElementById('localServerUrl');
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+
+            // Store conversation history
+            let conversationHistory = [];
+
+            // Event listeners
+            settingsButton.addEventListener('click', () => {
+                settingsModal.style.display = 'flex';
+                // Load saved settings
+                const settings = JSON.parse(localStorage.getItem('llmSettings') || '{}');
+                if (settings.provider) modelSelect.value = settings.provider;
+                if (settings.apiKey) apiKeyInput.value = settings.apiKey;
+                if (settings.localServerUrl) localServerUrl.value = settings.localServerUrl;
+                
+                // Show/hide local server settings based on provider
+                localServerSettings.style.display = modelSelect.value === 'lmstudio' ? 'block' : 'none';
+            });
+
+            // Close modal when clicking outside
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target === settingsModal) {
+                    settingsModal.style.display = 'none';
+                }
+            });
+
+            // Toggle local server settings visibility based on provider selection
+            modelSelect.addEventListener('change', () => {
+                localServerSettings.style.display = modelSelect.value === 'lmstudio' ? 'block' : 'none';
+            });
+
+            // Save settings
+            settingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const settings = {
+                    provider: modelSelect.value,
+                    apiKey: apiKeyInput.value,
+                    localServerUrl: localServerUrl.value
+                };
+                
+                // Update API client settings
+                llmClient.updateSettings(settings);
+                
+                settingsModal.style.display = 'none';
+                checkConnection();
+            });
+
+            // Send message
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Check if we have stored settings and update connection status
+            function checkConnection() {
+                if (llmClient.isConfigured()) {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = `Connected to ${llmClient.getProviderName()}`;
+                } else {
+                    statusDot.classList.remove('connected');
+                    statusText.textContent = 'Not connected';
+                }
+            }
+
+            // Add a message to the chat
+            function addMessage(text, isUser) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.classList.add(isUser ? 'user-message' : 'llm-message');
+
+                if (isUser) {
+                    messageDiv.textContent = text;
+                } else {
+                    // Process markdown-like formatting for code blocks in LLM messages
+                    const formattedText = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+                    messageDiv.innerHTML = formattedText;
+                }
+
+                messagesContainer.appendChild(messageDiv);
+                messageDiv.scrollIntoView({ behavior: 'smooth' });
+
+                // Update conversation history
+                conversationHistory.push({
+                    role: isUser ? 'user' : 'assistant',
+                    content: text
+                });
+            }
+
+            // Process LLM response for page modification commands
+            function processLLMResponse(response) {
+                // Check for page modification commands
+                const commandRegex = /\[MODIFY_PAGE\]([\s\S]*?)\[\/MODIFY_PAGE\]/g;
+                let match;
+                let processedResponse = response;
+                
+                while ((match = commandRegex.exec(response)) !== null) {
+                    const commandText = match[1].trim();
+                    
+                    try {
+                        // Process the modification commands
+                        const result = pageModifier.processCommands(commandText);
+                        
+                        // Replace the command block with a success/error message
+                        if (result.success) {
+                            processedResponse = processedResponse.replace(match[0], '[Page modification successful]');
+                        } else {
+                            processedResponse = processedResponse.replace(match[0], `[Page modification error: ${result.error}]`);
+                        }
+                    } catch (error) {
+                        console.error('Error processing page modification:', error);
+                        processedResponse = processedResponse.replace(match[0], `[Page modification error: ${error.message}]`);
+                    }
+                }
+                
+                return processedResponse;
+            }
+
+            // Send a message to the LLM
+            async function sendMessage() {
+                const text = userInput.value.trim();
+                if (!text) return;
+
+                // Check if API is configured
+                if (!llmClient.isConfigured()) {
+                    addMessage("Please configure your LLM provider in settings first.", false);
+                    settingsModal.style.display = 'flex';
+                    return;
+                }
+
+                // Add user message to chat and clear input
+                addMessage(text, true);
+                userInput.value = '';
+                
+                // Show loading indicator
+                loadingIndicator.style.display = 'flex';
+                sendButton.disabled = true;
+                
+                try {
+                    // Call LLM API
+                    const response = await llmClient.sendMessage(text, conversationHistory.slice(0, -1));
+                    
+                    // Process response for page modifications
+                    const processedResponse = processLLMResponse(response);
+                    
+                    // Add LLM response to chat
+                    addMessage(processedResponse, false);
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    addMessage(`Error: ${error.message}`, false);
+                } finally {
+                    // Hide loading indicator
+                    loadingIndicator.style.display = 'none';
+                    sendButton.disabled = false;
+                }
+            }
+
+            // Add a welcome message
+            addMessage("Welcome to the Self-Morphing LLM Interface! I can help you with tasks and can even modify this page based on your requests. To get started, please configure your LLM provider in settings.", false);
+
+            // Initial connection check
+            checkConnection();
+        });
+    </script>
+</body>
+</html>
