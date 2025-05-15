@@ -251,13 +251,26 @@ class LLMApiClient {
      * @returns {Promise<string>} - The response from the local LLM
      */
     async callLMStudio(conversation) {
-        const apiUrl = this.settings.localServerUrl || 'http://localhost:1234/v1/chat/completions';
+        // Ensure the URL ends with /v1/chat/completions
+        let baseUrl = this.settings.localServerUrl || 'http://localhost:1234';
         
-        console.log('Calling LM Studio API at:', apiUrl);
+        // Remove trailing slash if present
+        baseUrl = baseUrl.replace(/\/$/, '');
+        
+        // Ensure URL has the correct endpoint path
+        if (!baseUrl.endsWith('/v1/chat/completions')) {
+            if (!baseUrl.includes('/v1')) {
+                baseUrl = `${baseUrl}/v1/chat/completions`;
+            } else {
+                baseUrl = `${baseUrl.split('/v1')[0]}/v1/chat/completions`;
+            }
+        }
+        
+        console.log('Calling LM Studio API at:', baseUrl);
         console.log('With conversation:', JSON.stringify(conversation));
         
         // LM Studio doesn't require an API key, just the server URL
-        const response = await fetch(apiUrl, {
+        const response = await fetch(baseUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -277,11 +290,74 @@ class LLMApiClient {
         if (!response.ok) {
             const errorText = await response.text();
             console.error('LM Studio API Error Response:', errorText);
+            
+            // If we got a "Unexpected endpoint" error, try some common fallback URLs
+            if (errorText.includes("Unexpected endpoint") && !this._triedFallbacks) {
+                this._triedFallbacks = true;
+                console.log("Trying fallback endpoints...");
+                
+                // Try some common fallback endpoints
+                const fallbackUrls = [
+                    `${this.settings.localServerUrl || 'http://localhost:1234'}/v1/completions`,
+                    `${this.settings.localServerUrl || 'http://localhost:1234'}/api/chat`,
+                    `${this.settings.localServerUrl || 'http://localhost:1234'}/api/generate`,
+                    `${this.settings.localServerUrl || 'http://localhost:1234'}/api/v1/generate`
+                ];
+                
+                for (const fallbackUrl of fallbackUrls) {
+                    try {
+                        console.log(`Trying fallback URL: ${fallbackUrl}`);
+                        
+                        const fallbackResponse = await fetch(fallbackUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                messages: conversation,
+                                model: "local-model",
+                                max_tokens: 2000,
+                                temperature: 0.7,
+                                stream: false
+                            })
+                        });
+                        
+                        if (fallbackResponse.ok) {
+                            const data = await fallbackResponse.json();
+                            console.log('Fallback response successful:', data);
+                            
+                            // Reset fallback flag
+                            this._triedFallbacks = false;
+                            
+                            // Extract response from various formats
+                            if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+                                return data.choices[0].message.content;
+                            } else if (data.response) {
+                                return data.response;
+                            } else if (data.content) {
+                                return data.content;
+                            } else if (data.output) {
+                                return data.output;
+                            } else if (data.text) {
+                                return data.text;
+                            } else if (typeof data === 'string') {
+                                return data;
+                            }
+                        }
+                    } catch (fallbackError) {
+                        console.error(`Fallback URL ${fallbackUrl} failed:`, fallbackError);
+                    }
+                }
+                
+                // Reset fallback flag
+                this._triedFallbacks = false;
+            }
+            
             try {
                 const error = JSON.parse(errorText);
-                throw new Error(`LM Studio API error: ${error.error?.message || response.statusText}`);
+                throw new Error(`LM Studio API error: ${error.error?.message || response.statusText}. Please check the server URL in settings and make sure LM Studio is running properly.`);
             } catch (e) {
-                throw new Error(`LM Studio API error: ${response.status} ${response.statusText}`);
+                throw new Error(`LM Studio API error: ${response.status} ${response.statusText}. Please check the server URL in settings and make sure LM Studio is running properly.`);
             }
         }
 

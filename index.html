@@ -295,6 +295,9 @@
                 <div id="localServerSettings" style="display: none;">
                     <label for="localServerUrl">Local Server URL:</label>
                     <input type="text" class="api-key-input" id="localServerUrl" placeholder="http://localhost:1234">
+                    <p style="font-size: 0.8rem; color: #666; margin-top: 0.3rem;">
+                        Enter the base URL only (e.g., http://localhost:1234). The API endpoint path will be added automatically.
+                    </p>
                 </div>
 
                 <button type="submit" class="send-button">Save Settings</button>
@@ -480,7 +483,19 @@
                     addMessage(processedResponse, false);
                 } catch (error) {
                     console.error('Error sending message:', error);
-                    addMessage(`Error: ${error.message}`, false);
+                    
+                    let errorMsg = `Error: ${error.message}`;
+                    
+                    // Add helpful tips for common LM Studio errors
+                    if (llmClient.settings.provider === 'lmstudio') {
+                        errorMsg += "\n\nCommon troubleshooting tips for LM Studio:\n" +
+                            "1. Make sure LM Studio is running and the local server is started\n" +
+                            "2. Check that the URL is correct (typically http://localhost:1234)\n" +
+                            "3. Ensure you've loaded a model in LM Studio\n" +
+                            "4. Try restarting the LM Studio server";
+                    }
+                    
+                    addMessage(errorMsg, false);
                     
                     // Show more details in console for debugging
                     if (error.stack) {
@@ -494,7 +509,7 @@
             }
 
             // Add a welcome message
-            addMessage("Welcome to the Self-Morphing LLM Interface! I can help you with tasks and can even modify this page based on your requests. To get started, please configure your LLM provider in settings.", false);
+            addMessage("Welcome to the Self-Morphing LLM Interface! I can help you with tasks and can even modify this page based on your requests. To get started, please configure your LLM provider in settings.\n\nFor LM Studio users: Make sure your local server is running and enter the base URL (e.g., http://localhost:1234) in the settings.", false);
 
             // Initial connection check
             checkConnection();
