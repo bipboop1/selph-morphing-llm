@@ -56,6 +56,8 @@ class LLMApiClient {
             throw new Error('API client is not configured');
         }
 
+        console.log('Sending message to provider:', this.settings.provider);
+        
         // Add the user message to the conversation history
         conversation.push({ role: 'user', content: message });
 
@@ -66,28 +68,33 @@ class LLMApiClient {
                     if (!this.settings.apiKey) {
                         throw new Error('OpenAI requires an API key');
                     }
+                    console.log('Calling OpenAI API...');
                     response = await this.callOpenAI(conversation);
                     break;
                 case 'anthropic':
                     if (!this.settings.apiKey) {
                         throw new Error('Anthropic Claude requires an API key');
                     }
+                    console.log('Calling Anthropic API...');
                     response = await this.callAnthropic(conversation);
                     break;
                 case 'gemini':
                     if (!this.settings.apiKey) {
                         throw new Error('Google Gemini requires an API key');
                     }
+                    console.log('Calling Gemini API...');
                     response = await this.callGemini(conversation);
                     break;
                 case 'mistral':
                     if (!this.settings.apiKey) {
                         throw new Error('Mistral requires an API key');
                     }
+                    console.log('Calling Mistral API...');
                     response = await this.callMistral(conversation);
                     break;
                 case 'lmstudio':
                     // LM Studio doesn't require an API key
+                    console.log('Calling LM Studio API...');
                     response = await this.callLMStudio(conversation);
                     break;
                 default:
@@ -246,6 +253,9 @@ class LLMApiClient {
     async callLMStudio(conversation) {
         const apiUrl = this.settings.localServerUrl || 'http://localhost:1234/v1/chat/completions';
         
+        console.log('Calling LM Studio API at:', apiUrl);
+        console.log('With conversation:', JSON.stringify(conversation));
+        
         // LM Studio doesn't require an API key, just the server URL
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -254,19 +264,50 @@ class LLMApiClient {
             },
             body: JSON.stringify({
                 messages: conversation,
+                model: "local-model", // Generic model name for LM Studio
                 max_tokens: 2000,
                 temperature: 0.7,
-                stream: false
+                stream: false,
+                frequency_penalty: 0,
+                presence_penalty: 0,
+                stop: null
             })
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`LM Studio API error: ${error.error?.message || response.statusText}`);
+            const errorText = await response.text();
+            console.error('LM Studio API Error Response:', errorText);
+            try {
+                const error = JSON.parse(errorText);
+                throw new Error(`LM Studio API error: ${error.error?.message || response.statusText}`);
+            } catch (e) {
+                throw new Error(`LM Studio API error: ${response.status} ${response.statusText}`);
+            }
         }
 
-        const data = await response.json();
-        return data.choices[0].message.content;
+        try {
+            const data = await response.json();
+            console.log('LM Studio API Response:', data);
+            
+            // Handle different possible response formats
+            if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+                return data.choices[0].message.content;
+            } else if (data.response) {
+                return data.response;
+            } else if (data.content) {
+                return data.content;
+            } else if (data.output) {
+                return data.output;
+            } else if (typeof data === 'string') {
+                return data;
+            } else {
+                console.error('Unknown LM Studio response format:', data);
+                return JSON.stringify(data);
+            }
+        } catch (error) {
+            console.error('Error parsing LM Studio response:', error);
+            throw new Error(`Failed to parse LM Studio response: ${error.message}`);
+        }
     }
 }
 

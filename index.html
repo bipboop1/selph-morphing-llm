@@ -466,17 +466,26 @@
                 sendButton.disabled = true;
                 
                 try {
+                    console.log("Sending message:", text);
+
                     // Call LLM API
                     const response = await llmClient.sendMessage(text, conversationHistory.slice(0, -1));
+                    console.log("Received response:", response);
                     
                     // Process response for page modifications
                     const processedResponse = processLLMResponse(response);
+                    console.log("Processed response:", processedResponse);
                     
                     // Add LLM response to chat
                     addMessage(processedResponse, false);
                 } catch (error) {
                     console.error('Error sending message:', error);
                     addMessage(`Error: ${error.message}`, false);
+                    
+                    // Show more details in console for debugging
+                    if (error.stack) {
+                        console.error('Error stack:', error.stack);
+                    }
                 } finally {
                     // Hide loading indicator
                     loadingIndicator.style.display = 'none';
